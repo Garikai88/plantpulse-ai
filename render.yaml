@@ -1,5 +1,5 @@
 services:
-  # 1. Node.js / Express Web Service (API Backend)
+  # Single Web Service running our Node.js / Express API Engine
   - type: web
     name: plantpulse-api
     env: node
@@ -14,23 +14,8 @@ services:
       - key: PORT
         value: 10000
 
-  # 2. Python Background Worker (Telemetry & Alert Engine)
-  - type: worker
-    name: plantpulse-telemetry-worker
-    env: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python worker.py
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: plantpulse-db
-          property: connectionString
-      - key: POLL_INTERVAL_SECONDS
-        value: "30"
-
 databases:
-  # 3. Managed PostgreSQL Database
+  # Managed PostgreSQL Database
   - name: plantpulse-db
     plan: free
     databaseName: plantpulse_db
