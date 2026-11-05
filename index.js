@@ -40,6 +40,42 @@ async function sendAlertEmail(machineId, issueDescription) {
   }
 }
 
+// Fetch recent maintenance tickets (with optional machine filter)
+app.get('/api/tickets', async (req, res) => {
+  const {machine_id} = req.query;
+  try {
+    let query = 'SELECT * FROM maintenance_tickets';
+    let params = [];
+    if (machine_id) {
+      query += 'WHERE machine_id = $1';
+      params.push(machine_id);
+    }
+    query += 'ORDER BY created_at DESC LIMIT 10';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Database query failure'});
+  }
+});
+
+// Fetch recent telemetry logs for charting (with optional machine filter)
+app.get('/api/telemetry/recent', async (req, res) => {
+  const {machine_id} = req.query;
+  try {
+    let query = 'SELECT * FROM machine_telemetry';
+    let params = [];
+    if (machine_id) {
+      query += 'WHERE machine_id = $1';
+      params.push(machine_id);
+    }
+    query += 'ORDER BY recorded_at DESC LIMIT 15';
+    const result = await pool.query(query, params);
+    res.json(result.rows.reverse()); 
+  } catch (err) {
+    res.status(500).json({ error: 'Database query failure' });
+  }
+});
+
 // Fetch endpoints...
 app.get('/api/machines', async (req, res) => {
   try {
@@ -105,5 +141,6 @@ app.post('/api/telemetry', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`PlantPulse API server running on port ${PORT}`);
 });
+
 
 

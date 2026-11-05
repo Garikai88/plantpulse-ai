@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,6 +15,7 @@
       --muted: #94a3b8;
       --danger: #ef4444;
       --border: #334155;
+      --hover: #33415550;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body { background-color: var(--bg); color: var(--text); padding: 20px; }
@@ -23,12 +25,18 @@
     
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 24px; }
     .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
-    .card h2 { font-size: 1.1rem; margin-bottom: 16px; color: var(--muted); }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .card h2 { font-size: 1.1rem; color: var(--muted); }
     
     table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; }
     th, td { padding: 10px; border-bottom: 1px solid var(--border); }
     th { color: var(--muted); font-weight: 600; }
+    tbody tr { cursor: pointer; transition: background 0.2s; }
+    tbody tr:hover { background-color: var(--hover); }
     .severity-high { color: var(--danger); font-weight: bold; }
+    
+    .btn-reset { background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; display: none; }
+    .btn-reset:hover { background: var(--accent); color: var(--bg); }
   </style>
 </head>
 <body>
@@ -40,11 +48,14 @@
 
   <div class="grid">
     <div class="card">
-      <h2>Live Telemetry Stream (Vibration & Temp)</h2>
+      <div class="card-header">
+        <h2 id="chartTitle">Live Telemetry Stream (All Machines)</h2>
+        <button id="resetFilterBtn" class="btn-reset" onclick="resetFilter()">Show All Machines</button>
+      </div>
       <canvas id="telemetryChart"></canvas>
     </div>
     <div class="card">
-      <h2>Monitored Equipment</h2>
+      <h2>Monitored Equipment (Click to Filter)</h2>
       <table id="machinesTable">
         <thead>
           <tr><th>ID</th><th>Machine Name</th><th>Location</th><th>Status</th></tr>
@@ -55,7 +66,7 @@
   </div>
 
   <div class="card">
-    <h2>Active Maintenance Tickets</h2>
+    <h2 id="ticketsTitle">Active Maintenance Tickets</h2>
     <table id="ticketsTable">
       <thead>
         <tr><th>Ticket ID</th><th>Machine</th><th>Issue Description</th><th>Severity</th><th>Timestamp</th></tr>
@@ -66,6 +77,8 @@
 
   <script>
     const API_BASE = window.location.origin;
+    let selectedMachineId = null;
+    let selectedMachineName = '';
 
     // Chart Setup
     const ctx = document.getElementById('telemetryChart').getContext('2d');
@@ -81,17 +94,38 @@
       options: { responsive: true, scales: { x: { display: false } } }
     });
 
+    function filterByMachine(id, name) {
+      selectedMachineId = id;
+      selectedMachineName = name;
+      document.getElementById('chartTitle').innerText = `Telemetry: ${name}`;
+      document.getElementById('ticketsTitle').innerText = `Maintenance Tickets: ${name}`;
+      document.getElementById('resetFilterBtn').style.display = 'inline-block';
+      fetchDashboardData();
+    }
+
+    function resetFilter() {
+      selectedMachineId = null;
+      selectedMachineName = '';
+      document.getElementById('chartTitle').innerText = 'Live Telemetry Stream (All Machines)';
+      document.getElementById('ticketsTitle').innerText = 'Active Maintenance Tickets';
+      document.getElementById('resetFilterBtn').style.display = 'none';
+      fetchDashboardData();
+    }
+
     async function fetchDashboardData() {
       try {
         // Fetch Machines
         const machinesRes = await fetch(`${API_BASE}/api/machines`);
         const machines = await machinesRes.json();
         document.querySelector('#machinesTable tbody').innerHTML = machines.map(m => `
-          <tr><td>#${m.id}</td><td>${m.name}</td><td>${m.location}</td><td>${m.status}</td></tr>
+          <tr onclick="filterByMachine(${m.id}, '${m.name}')" style="${selectedMachineId === m.id ? 'background: #33415580;' : ''}">
+            <td>#${m.id}</td><td>${m.name}</td><td>${m.location}</td><td>${m.status}</td>
+          </tr>
         `).join('');
 
-        // Fetch Tickets
-        const ticketsRes = await fetch(`${API_BASE}/api/tickets`);
+        // Fetch Tickets (with optional filter)
+        const ticketsUrl = selectedMachineId ? `${API_BASE}/api/tickets?machine_id=${selectedMachineId}` : `${API_BASE}/api/tickets`;
+        const ticketsRes = await fetch(ticketsUrl);
         const tickets = await ticketsRes.json();
         document.querySelector('#ticketsTable tbody').innerHTML = tickets.map(t => `
           <tr>
@@ -103,8 +137,9 @@
           </tr>
         `).join('');
 
-        // Fetch Telemetry Logs
-        const telemetryRes = await fetch(`${API_BASE}/api/telemetry/recent`);
+        // Fetch Telemetry Logs (with optional filter)
+        const telemetryUrl = selectedMachineId ? `${API_BASE}/api/telemetry/recent?machine_id=${selectedMachineId}` : `${API_BASE}/api/telemetry/recent`;
+        const telemetryRes = await fetch(telemetryUrl);
         const telemetry = await telemetryRes.json();
         
         telemetryChart.data.labels = telemetry.map(t => new Date(t.recorded_at).toLocaleTimeString());
