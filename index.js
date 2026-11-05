@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const nodemailer = require('nodemailer');
+const OpenAI = require('openai');
 const pool = require('./db');
 
 const app = express();
@@ -17,6 +18,11 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   }
+});
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || 'mock-key'
 });
 
 async function sendAlertEmail(machineId, issueDescription) {
@@ -86,6 +92,57 @@ app.get('/api/telemetry/recent', async (req, res) => {
   }
 });
 
+// AI Predictive Maintenance Insight Endpoint
+app.get('/api/machines/:id/ai-insights', async (req, res) => {
+  const machineId = req.params.id;
+  try {
+    const telemetryResult = await pool.query(
+      'SELECT vibration, temperature, pressure, recorded_at FROM machine_telemetry WHERE machine_id = $1 ORDER BY recorded_at DESC LIMIT 20',
+      [machineId]
+    );
+
+    const machineResult = await pool.query('SELECT * FROM machines WHERE id = $1', [machineId]);
+
+    if (machineResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Machine not found' });
+    }
+
+    const machine = machineResult.rows[0];
+    const logs = telemetryResult.rows;
+
+    if (logs.length === 0) {
+      return res.json({ insight: 'Insufficient telemetry data available for AI analysis yet.' });
+    }
+
+    // Fallback analytical simulation if no live OpenAI API key is set
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'mock-key') {
+      const avgTemp = (logs.reduce((acc, l) => acc + parseFloat(l.temperature), 0) / logs.length).toFixed(1);
+      const avgVib = (logs.reduce((acc, l) => acc + parseFloat(l.vibration), 0) / logs.length).toFixed(1);
+      
+      let statusSummary = `AI Diagnostic for ${machine.name} (${machine.location}): Average temperature is ${avgTemp}°C and average vibration is ${avgVib} mm/s over the last 20 telemetry cycles. `;
+      statusSummary += avgVib > 7.0 || avgTemp > 85.0 
+        ? '⚠️ Warning: Elevated wear patterns detected on mechanical bearings. Recommend preventative alignment check within 24 hours.' 
+        : '✅ Status Normal: Operating within safe parametric thresholds. No immediate action required.';
+      
+      return res.json({ insight: statusSummary });
+    }
+
+    const prompt = `You are an expert industrial machinery reliability engineer. Analyze these recent telemetry readings for ${machine.name} (${machine.location}):\n${JSON.stringify(logs, null, 2)}\n\nProvide a concise 2-sentence predictive maintenance health summary and recommendation.`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 150
+    });
+
+    res.json({ insight: completion.choices[0].message.content });
+
+  } catch (err) {
+    console.error('AI Insight Error:', err);
+    res.status(500).json({ error: 'Failed to generate AI predictive insights' });
+  }
+});
+
 // Post telemetry route with email trigger
 app.post('/api/telemetry', async (req, res) => {
   const { machine_id, vibration, temperature, pressure } = req.body;
@@ -110,7 +167,6 @@ app.post('/api/telemetry', async (req, res) => {
         [machine_id, issueDesc, 'high']
       );
 
-      // Trigger email dispatch asynchronously
       sendAlertEmail(machine_id, issueDesc);
     }
 
@@ -123,6 +179,7 @@ app.post('/api/telemetry', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`PlantPulse API server running on port ${PORT}`);
 });
+
 
 
 

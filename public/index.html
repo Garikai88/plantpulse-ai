@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -65,6 +64,14 @@
     </div>
   </div>
 
+  <!-- AI Predictive Health Advisor Panel -->
+  <div class="card" style="margin-bottom: 24px;">
+    <h2>🤖 PlantPulse AI Predictive Health Advisor</h2>
+    <p id="aiInsightText" style="color: var(--text); font-size: 0.95rem; line-height: 1.5; margin-top: 10px;">
+      Select a specific machine from the equipment table above to run real-time AI diagnostic analysis on its telemetry stream.
+    </p>
+  </div>
+
   <div class="card">
     <h2 id="ticketsTitle">Active Maintenance Tickets</h2>
     <table id="ticketsTable">
@@ -101,6 +108,7 @@
       document.getElementById('ticketsTitle').innerText = `Maintenance Tickets: ${name}`;
       document.getElementById('resetFilterBtn').style.display = 'inline-block';
       fetchDashboardData();
+      fetchAiInsights(id);
     }
 
     function resetFilter() {
@@ -109,7 +117,19 @@
       document.getElementById('chartTitle').innerText = 'Live Telemetry Stream (All Machines)';
       document.getElementById('ticketsTitle').innerText = 'Active Maintenance Tickets';
       document.getElementById('resetFilterBtn').style.display = 'none';
+      document.getElementById('aiInsightText').innerText = 'Select a specific machine from the equipment table above to run real-time AI diagnostic analysis on its telemetry stream.';
       fetchDashboardData();
+    }
+
+    async function fetchAiInsights(machineId) {
+      document.getElementById('aiInsightText').innerText = 'Analyzing telemetry streams with AI model...';
+      try {
+        const res = await fetch(`${API_BASE}/api/machines/${machineId}/ai-insights`);
+        const data = await res.json();
+        document.getElementById('aiInsightText').innerText = data.insight;
+      } catch (err) {
+        document.getElementById('aiInsightText').innerText = 'Failed to retrieve AI insights.';
+      }
     }
 
     async function fetchDashboardData() {
@@ -157,3 +177,4 @@
   </script>
 </body>
 </html>
+
