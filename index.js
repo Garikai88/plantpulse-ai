@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 10000;
 
 // Configure Nodemailer transporter using environment variables
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // or your preferred SMTP provider
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
@@ -27,7 +27,7 @@ async function sendAlertEmail(machineId, issueDescription) {
 
   const mailOptions = {
     from: `"PlantPulse AI Alerts" <${process.env.EMAIL_USER}>`,
-    to: process.env.EMAIL_USER, // Send alert to yourself or maintenance lead
+    to: process.env.EMAIL_USER,
     subject: `⚠️ HIGH SEVERITY ALERT: Machine #${machineId}`,
     text: `PlantPulse AI Industrial IoT Engine has detected a critical anomaly.\n\nDetails:\n${issueDescription}\n\nTimestamp: ${new Date().toLocaleString()}\n\nPlease check the dashboard immediately.`
   };
@@ -40,43 +40,7 @@ async function sendAlertEmail(machineId, issueDescription) {
   }
 }
 
-// Fetch recent maintenance tickets (with optional machine filter)
-app.get('/api/tickets', async (req, res) => {
-  const {machine_id} = req.query;
-  try {
-    let query = 'SELECT * FROM maintenance_tickets';
-    let params = [];
-    if (machine_id) {
-      query += 'WHERE machine_id = $1';
-      params.push(machine_id);
-    }
-    query += 'ORDER BY created_at DESC LIMIT 10';
-    const result = await pool.query(query, params);
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: 'Database query failure'});
-  }
-});
-
-// Fetch recent telemetry logs for charting (with optional machine filter)
-app.get('/api/telemetry/recent', async (req, res) => {
-  const {machine_id} = req.query;
-  try {
-    let query = 'SELECT * FROM machine_telemetry';
-    let params = [];
-    if (machine_id) {
-      query += 'WHERE machine_id = $1';
-      params.push(machine_id);
-    }
-    query += 'ORDER BY recorded_at DESC LIMIT 15';
-    const result = await pool.query(query, params);
-    res.json(result.rows.reverse()); 
-  } catch (err) {
-    res.status(500).json({ error: 'Database query failure' });
-  }
-});
-
-// Fetch endpoints...
+// Fetch all machines
 app.get('/api/machines', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM machines ORDER BY id ASC');
@@ -86,19 +50,37 @@ app.get('/api/machines', async (req, res) => {
   }
 });
 
+// Fetch recent maintenance tickets (with optional machine filter)
 app.get('/api/tickets', async (req, res) => {
+  const { machine_id } = req.query;
   try {
-    const result = await pool.query('SELECT * FROM maintenance_tickets ORDER BY created_at DESC LIMIT 10');
+    let query = 'SELECT * FROM maintenance_tickets';
+    let params = [];
+    if (machine_id) {
+      query += ' WHERE machine_id = $1';
+      params.push(machine_id);
+    }
+    query += ' ORDER BY created_at DESC LIMIT 10';
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Database query failure' });
   }
 });
 
+// Fetch recent telemetry logs for charting (with optional machine filter)
 app.get('/api/telemetry/recent', async (req, res) => {
+  const { machine_id } = req.query;
   try {
-    const result = await pool.query('SELECT * FROM machine_telemetry ORDER BY recorded_at DESC LIMIT 15');
-    res.json(result.rows.reverse());
+    let query = 'SELECT * FROM machine_telemetry';
+    let params = [];
+    if (machine_id) {
+      query += ' WHERE machine_id = $1';
+      params.push(machine_id);
+    }
+    query += ' ORDER BY recorded_at DESC LIMIT 15';
+    const result = await pool.query(query, params);
+    res.json(result.rows.reverse()); 
   } catch (err) {
     res.status(500).json({ error: 'Database query failure' });
   }
@@ -141,6 +123,7 @@ app.post('/api/telemetry', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`PlantPulse API server running on port ${PORT}`);
 });
+
 
 
 
